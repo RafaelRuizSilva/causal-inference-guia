@@ -1,0 +1,1259 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Árvore de Decisão · Inferência Causal</title>
+<style>
+  /* ============ tokens · tema Mercado Livre ============ */
+  :root {
+    color-scheme: light;
+    --page: #ededed;
+    --surface: #ffffff;
+    --ink: #2d2d2d;
+    --ink-2: #4f4f4f;
+    --muted: #8c8c8c;
+    --grid: #e2e2e2;
+    --axis: #c9c9c9;
+    --border: rgba(0,0,0,.10);
+    --brand: #ffe600;          /* amarelo Mercado Livre */
+    --brand-ink: #2d3277;      /* azul Mercado Pago */
+    --accent: #3483fa;         /* azul de ação ML */
+    --accent-deep: #2968c8;
+    --accent-wash: rgba(52,131,250,.10);
+    --good: #00a650;           /* verde "frete grátis" */
+    --good-wash: rgba(0,166,80,.10);
+    --crit: #e53935;
+    --crit-wash: rgba(229,57,53,.09);
+    --q: #6c4bd8;              /* roxo p/ nós de pergunta */
+    --q-wash: rgba(108,75,216,.10);
+    --font-display: "Proxima Nova","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+    --font-body: "Proxima Nova","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+    --font-mono: ui-monospace,"Cascadia Code","Consolas",monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #141414;
+      --surface: #1e1e1e;
+      --ink: #f4f4f4;
+      --ink-2: #cccccc;
+      --muted: #8c8c8c;
+      --grid: #2e2e2e;
+      --axis: #3c3c3c;
+      --border: rgba(255,255,255,.12);
+      --brand: #ffe600;
+      --brand-ink: #141414;
+      --accent: #4d94ff;
+      --accent-deep: #8bbcff;
+      --accent-wash: rgba(77,148,255,.14);
+      --good: #1fc26b;
+      --good-wash: rgba(31,194,107,.14);
+      --crit: #ef5350;
+      --crit-wash: rgba(239,83,80,.14);
+      --q: #a98bff;
+      --q-wash: rgba(169,139,255,.16);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #141414; --surface: #1e1e1e; --ink: #f4f4f4; --ink-2: #cccccc; --muted: #8c8c8c;
+    --grid: #2e2e2e; --axis: #3c3c3c; --border: rgba(255,255,255,.12);
+    --brand: #ffe600; --brand-ink: #141414;
+    --accent: #4d94ff; --accent-deep: #8bbcff; --accent-wash: rgba(77,148,255,.14);
+    --good: #1fc26b; --good-wash: rgba(31,194,107,.14); --crit: #ef5350; --crit-wash: rgba(239,83,80,.14);
+    --q: #a98bff; --q-wash: rgba(169,139,255,.16);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--page); color: var(--ink);
+    font-family: var(--font-body); font-size: 16px; line-height: 1.62;
+  }
+  h1, h2, h3, h4 { font-family: var(--font-display); line-height: 1.2; text-wrap: balance; margin: 0; }
+  p { margin: 0; }
+  a { color: var(--accent-deep); }
+  button { font-family: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+  code { font-family: var(--font-mono); }
+
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
+
+  /* ============ header ============ */
+  header.top { background: var(--brand); color: var(--brand-ink); padding: 30px 0 26px; }
+  .kicker { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; opacity: .8; }
+  h1.title { font-size: clamp(27px, 5vw, 43px); margin-top: 8px; }
+  .sub { max-width: 66ch; margin-top: 12px; font-size: 15.5px; font-weight: 500; }
+  .badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .badge {
+    background: rgba(255,255,255,.55); color: var(--brand-ink); border-radius: 999px;
+    padding: 5px 12px; font-size: 12.5px; font-weight: 600;
+  }
+  :root[data-theme="dark"] .badge, :root:where(:not([data-theme="light"])) .badge { background: rgba(0,0,0,.18); }
+
+  main { padding: 34px 0 20px; }
+
+  .lede { color: var(--ink-2); max-width: 70ch; margin-top: 10px; }
+  .lede strong { color: var(--ink); }
+
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 22px; margin-top: 22px;
+  }
+  .panel > h2 { font-size: clamp(20px, 3vw, 27px); }
+  .panel > h3.ptitle { font-family: var(--font-body); font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .panel .phint { font-size: 13.5px; color: var(--ink-2); max-width: 74ch; margin-top: 4px; }
+
+  /* ============ passo 0 ============ */
+  .estimand-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-top: 16px; }
+  .estimand-card { background: var(--page); border: 1px solid var(--grid); border-radius: 10px; padding: 14px 16px; }
+  .estimand-card h4 { font-family: var(--font-mono); font-size: 14px; color: var(--accent-deep); }
+  .estimand-card p { font-size: 13px; color: var(--ink-2); margin-top: 4px; }
+  ul.tt-list { margin: 12px 0 0; padding-left: 18px; font-size: 14px; color: var(--ink-2); }
+  ul.tt-list li { margin: 3px 0; }
+  ul.tt-list b { color: var(--ink); }
+
+  /* ============ árvore ============ */
+  .tree-shell { margin-top: 16px; }
+  .tree-scroll { overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; border: 1px solid var(--grid); border-radius: 10px; background: var(--page); }
+  .tree-scroll svg { display: block; }
+  .edge { fill: none; stroke: var(--axis); stroke-width: 1.6; }
+  .edge-label { fill: var(--muted); font-size: 10.5px; font-family: var(--font-mono); }
+  .node { cursor: pointer; }
+  .node .box { rx: 9; ry: 9; stroke-width: 1.6; transition: filter .12s; }
+  .node:hover .box { filter: brightness(1.04); }
+  .node.sel .box { stroke-width: 3; }
+  .node .lbl { font-family: var(--font-body); font-weight: 600; font-size: 12.5px; pointer-events: none; }
+  .node.kind-root  .box { fill: var(--brand); stroke: #d9c400; }
+  .node.kind-root  .lbl { fill: #2d3277; }
+  .node.kind-q     .box { fill: var(--q-wash); stroke: var(--q); }
+  .node.kind-q     .lbl { fill: var(--ink); }
+  .node.kind-m     .box { fill: var(--surface); stroke: var(--accent); }
+  .node.kind-m     .lbl { fill: var(--ink); }
+  .node.kind-m .bar { fill: var(--brand); }
+  .node.kind-x     .box { fill: var(--good-wash); stroke: var(--good); }
+  .node.kind-x     .lbl { fill: var(--ink); }
+  .node.sel .box { stroke: var(--accent-deep); }
+
+  .tree-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12.5px; color: var(--ink-2); margin-top: 10px; }
+  .tree-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .tree-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; border: 1.5px solid; }
+  .lg-root { background: var(--brand); border-color: #d9c400; }
+  .lg-q { background: var(--q-wash); border-color: var(--q); }
+  .lg-m { background: var(--surface); border-color: var(--accent); }
+  .lg-x { background: var(--good-wash); border-color: var(--good); }
+
+  /* ============ cards transversais ============ */
+  .cross-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  .cross-card {
+    text-align: left; cursor: pointer; background: var(--surface);
+    border: 1px dashed var(--good); border-radius: 10px; padding: 14px 16px; color: var(--ink);
+    transition: background .12s;
+  }
+  .cross-card:hover { background: var(--good-wash); }
+  .cross-card .ck { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--good); }
+  .cross-card h4 { font-size: 15px; margin-top: 3px; }
+  .cross-card p { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; }
+
+  /* ============ painel de detalhe ============ */
+  .detail { margin-top: 20px; scroll-margin-top: 14px; }
+  .dtag {
+    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 999px; margin-bottom: 8px;
+  }
+  .dtag.t-q { background: var(--q-wash); color: var(--q); }
+  .dtag.t-m { background: var(--accent-wash); color: var(--accent-deep); }
+  .dtag.t-x { background: var(--good-wash); color: var(--good); }
+  .dtag.t-root { background: var(--brand); color: #2d3277; }
+  .detail h3.dtitle { font-size: clamp(21px, 3.4vw, 29px); }
+  .detail .dlede { color: var(--ink-2); margin-top: 8px; max-width: 72ch; }
+
+  .dsub { font-family: var(--font-body); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-deep); margin: 20px 0 6px; }
+  .dbox { background: var(--page); border: 1px solid var(--grid); border-radius: 10px; padding: 12px 16px; font-size: 14px; color: var(--ink-2); }
+  .dbox.assume { border-left: 3px solid var(--crit); }
+  .dbox.assume b { color: var(--ink); }
+  ul.mlist { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+  ul.mlist li { background: var(--page); border: 1px solid var(--grid); border-radius: 9px; padding: 10px 14px; font-size: 13.5px; color: var(--ink-2); }
+  ul.mlist li b { color: var(--ink); font-size: 14px; }
+
+  .refs { margin-top: 18px; font-size: 13px; color: var(--ink-2); border-top: 1px solid var(--grid); padding-top: 12px; display: grid; gap: 4px; }
+  .refs b { color: var(--ink); }
+
+  /* ============ code cards — visual de IDE ============ */
+  .code-card { margin-top: 12px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #fbfbf9; font-family: var(--font-mono); }
+  .code-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #efefec; border-bottom: 1px solid var(--border); }
+  .code-head .dots { display: inline-flex; gap: 6px; flex: none; }
+  .code-head .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--axis); }
+  .code-head .fname { font-size: 12px; color: var(--ink-2); flex: 1; }
+  .copy { border: 1px solid var(--accent); background: var(--accent); color: #fff; font-family: var(--font-body); font-size: 12px; font-weight: 700; padding: 5px 13px; border-radius: 6px; cursor: pointer; flex: none; white-space: nowrap; }
+  .copy:hover { filter: brightness(1.08); }
+  .copy.ok { background: var(--good); border-color: var(--good); }
+  .run { border: 1px solid var(--good); background: transparent; color: var(--good); font-family: var(--font-body); font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 6px; cursor: pointer; flex: none; white-space: nowrap; }
+  .run:hover { background: rgba(0,166,80,.12); }
+  .run:disabled { opacity: .55; cursor: progress; }
+  .code-out { border-top: 1px solid var(--border); background: var(--page); }
+  .code-out-h { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); }
+  .code-out-h .out-x { border: none; background: none; color: var(--accent-deep); font-size: 11px; font-weight: 600; cursor: pointer; }
+  .code-out .out-body { margin: 0; padding: 12px 16px; font-family: var(--font-mono); font-size: 12px; line-height: 1.55; white-space: pre-wrap; color: var(--ink); max-height: 320px; overflow: auto; }
+  .code-out.err .out-body { color: var(--crit); }
+  .code-body { display: flex; overflow-x: auto; }
+  .code-body .gutter { flex: none; position: sticky; left: 0; user-select: none; text-align: right; padding: 14px 10px 14px 14px; border-right: 1px solid var(--border); background: #fbfbf9; color: var(--muted); font-size: 12.5px; line-height: 1.62; white-space: pre; }
+  pre.code { margin: 0; padding: 14px 16px; font-size: 12.5px; line-height: 1.62; color: var(--ink); white-space: pre; }
+  pre.code code { font-family: inherit; }
+  .t-c { color: #9aa0a6; font-style: italic; }
+  .t-s { color: #2e8b46; }
+  .t-n { color: #9a5a00; }
+  .t-k { color: #a626a4; font-weight: 600; }
+  .t-b { color: #0a7ca8; }
+  .t-f { color: #3f6ec9; }
+  .t-d { color: #9a5a00; }
+  .t-o { color: var(--ink-2); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .code-card,
+    :root:not([data-theme="light"]) .code-body .gutter { background: #1b1b1b; }
+    :root:not([data-theme="light"]) .code-head,
+    :root:not([data-theme="light"]) .code-out { background: #202020; }
+    :root:not([data-theme="light"]) .t-c { color: #7f848e; }
+    :root:not([data-theme="light"]) .t-s { color: #98c379; }
+    :root:not([data-theme="light"]) .t-n { color: #d19a66; }
+    :root:not([data-theme="light"]) .t-k { color: #c678dd; }
+    :root:not([data-theme="light"]) .t-b { color: #56b6c2; }
+    :root:not([data-theme="light"]) .t-f { color: #61afef; }
+    :root:not([data-theme="light"]) .t-d { color: #d19a66; }
+  }
+  :root[data-theme="dark"] .code-card,
+  :root[data-theme="dark"] .code-body .gutter { background: #1b1b1b; }
+  :root[data-theme="dark"] .code-head,
+  :root[data-theme="dark"] .code-out { background: #202020; }
+  :root[data-theme="dark"] .t-c { color: #7f848e; }
+  :root[data-theme="dark"] .t-s { color: #98c379; }
+  :root[data-theme="dark"] .t-n { color: #d19a66; }
+  :root[data-theme="dark"] .t-k { color: #c678dd; }
+  :root[data-theme="dark"] .t-b { color: #56b6c2; }
+  :root[data-theme="dark"] .t-f { color: #61afef; }
+  :root[data-theme="dark"] .t-d { color: #d19a66; }
+
+  .map-table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 12px; }
+  .map-table th, .map-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  .map-table th { font-size: 11.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .map-table td b { color: var(--ink); }
+  .table-scroll { overflow-x: auto; }
+
+  footer.foot { color: var(--muted); font-size: 12.5px; padding: 22px 0 44px; border-top: 1px solid var(--grid); margin-top: 30px; }
+
+  @media (max-width: 640px) {
+    .cross-row { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <p class="kicker">Mercado Livre · material de estudo — dados sintéticos</p>
+    <h1 class="title">Árvore de Decisão da Inferência Causal</h1>
+    <p class="sub">Um mapa de perguntas que leva de "qual é a minha pergunta causal?" até o método certo para respondê-la. Clique em qualquer nó para ver as hipóteses que ele exige, os métodos principais e um exemplo em Python com cenário do Mercado Livre.</p>
+    <div class="badge-row">
+      <span class="badge">📘 Hernán &amp; Robins — <em>Causal Inference: What If</em> (Harvard)</span>
+      <span class="badge">📗 Matheus Facure — <em>Causal Inference for the Brave and True</em></span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <!-- ============ PASSO 0 ============ -->
+    <section class="panel" id="p0">
+      <p class="dtag t-root">Passo 0 · antes de escolher qualquer método</p>
+      <h2>Escreva o "ensaio-alvo" (target trial)</h2>
+      <p class="lede">Miguel Hernán insiste: toda análise causal, mesmo com dados observacionais, é a tentativa de <strong>emular um experimento que você faria se pudesse</strong>. Se você não consegue descrever esse experimento, a pergunta ainda está vaga — e nenhum método salva pergunta vaga.</p>
+      <ul class="tt-list">
+        <li><b>Tratamento</b> — o que exatamente muda? (ex.: ativar frete grátis para o CEP do comprador)</li>
+        <li><b>Desfecho</b> — o que você mede, em que janela? (ex.: GMV nos 30 dias seguintes)</li>
+        <li><b>População</b> — para quem vale a conclusão? (ex.: compradores novos no app)</li>
+        <li><b>Tempo zero</b> — quando começa a contar para tratados e controles (alinhe os dois!)</li>
+        <li><b>Estimando</b> — qual número você quer?</li>
+      </ul>
+      <div class="estimand-grid">
+        <div class="estimand-card"><h4>ATE</h4><p>Efeito médio se <em>todo mundo</em> fosse tratado vs. ninguém. O default.</p></div>
+        <div class="estimand-card"><h4>ATT</h4><p>Efeito médio <em>nos que de fato foram tratados</em>. É o que DiD e matching entregam.</p></div>
+        <div class="estimand-card"><h4>LATE / CACE</h4><p>Efeito nos <em>compliers</em> — quem muda de tratamento por causa do instrumento. É o que IV entrega.</p></div>
+        <div class="estimand-card"><h4>CATE / uplift</h4><p>Efeito <em>condicional em X</em>: para quais clientes/vendedores funciona.</p></div>
+      </div>
+    </section>
+
+    <!-- ============ ÁRVORE ============ -->
+    <section class="panel">
+      <h3 class="ptitle">O mapa</h3>
+      <p class="phint">Cada seta é uma resposta. A régua horizontal é a ordem das perguntas; os nós azuis com faixa amarela são métodos (folhas). Toque para abrir o detalhe abaixo.</p>
+      <div class="tree-shell">
+        <div class="tree-scroll"><svg id="tree" role="img" aria-label="Árvore de decisão de métodos de inferência causal"></svg></div>
+        <div class="tree-legend">
+          <span><i class="lg-root"></i> Ponto de partida</span>
+          <span><i class="lg-q"></i> Pergunta-guia</span>
+          <span><i class="lg-m"></i> Método</span>
+          <span><i class="lg-x"></i> Passo transversal</span>
+        </div>
+      </div>
+      <div class="cross-row">
+        <button class="cross-card" data-node="dag">
+          <span class="ck">Sempre antes</span>
+          <h4>Desenhe o DAG</h4>
+          <p>É o grafo que diz o que ajustar (confundidor), o que <em>não</em> ajustar (mediador, colisor) e se o efeito é sequer identificável.</p>
+        </button>
+        <button class="cross-card" data-node="robust">
+          <span class="ck">Sempre depois</span>
+          <h4>Cheques de robustez</h4>
+          <p>Placebo, período/grupo falso, overlap/positividade, sensibilidade a confundidor oculto. É aqui que a estimativa ganha (ou perde) credibilidade.</p>
+        </button>
+      </div>
+    </section>
+
+    <!-- ============ DETALHE ============ -->
+    <section class="panel detail" id="detail" aria-live="polite"></section>
+
+    <!-- ============ MAPA PARA OS LIVROS ============ -->
+    <section class="panel">
+      <h3 class="ptitle">Onde ler cada coisa</h3>
+      <p class="phint">A árvore acima é uma síntese. A profundidade está nos dois livros — um gratuito e em Python (Facure), o outro o texto de referência da área (Hernán &amp; Robins, também gratuito em PDF no site de Harvard).</p>
+      <div class="table-scroll">
+      <table class="map-table">
+        <thead><tr><th>Tema</th><th>📘 Hernán &amp; Robins — <em>What If</em></th><th>📗 Facure — <em>Brave and True</em></th></tr></thead>
+        <tbody>
+          <tr><td><b>Potential outcomes, contrafactuais</b></td><td>Cap. 1–3 (efeito causal, aleatorização, estudos observacionais)</td><td>"Introduction to Causal Inference", "Potential Outcomes"</td></tr>
+          <tr><td><b>DAGs, confundimento, viés de seleção</b></td><td>Cap. 6–8</td><td>"Graphical Causal Models"</td></tr>
+          <tr><td><b>Experimento aleatório / A/B</b></td><td>Cap. 2</td><td>"Randomised Experiments", "Stats Review"</td></tr>
+          <tr><td><b>Padronização / g-fórmula / IPW</b></td><td>Cap. 12–13, 15, 17</td><td>"Regression", "Propensity Score", "Doubly Robust Estimation"</td></tr>
+          <tr><td><b>Matching</b></td><td>Cap. 15 (fine point)</td><td>"Matching"</td></tr>
+          <tr><td><b>Variáveis instrumentais</b></td><td>Cap. 16</td><td>"Instrumental Variables"</td></tr>
+          <tr><td><b>Diff-in-Diff / painel</b></td><td>— (usa alvo emulado)</td><td>"Difference-in-Differences", "Panel Data and Fixed Effects"</td></tr>
+          <tr><td><b>Regressão descontínua</b></td><td>—</td><td>"Regression Discontinuity Design"</td></tr>
+          <tr><td><b>Controle sintético</b></td><td>—</td><td>"Synthetic Control"</td></tr>
+          <tr><td><b>Efeitos heterogêneos (CATE) / ML causal</b></td><td>Cap. 4 (effect modification)</td><td>Parte III: "Meta Learners", "Debiased/Orthogonal ML", "Non-Linear Debiasing"</td></tr>
+          <tr><td><b>Tratamento variável no tempo / métodos-g</b></td><td>Cap. 19–21 (Parte III)</td><td>— (menção em painel)</td></tr>
+          <tr><td><b>Sensibilidade a confundidor oculto</b></td><td>Cap. 3 (fine point), "bias analysis"</td><td>"Sensitivity Analysis"</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="foot"><div class="wrap">Árvore de decisão de inferência causal — material de estudo pessoal, cenários e dados 100% sintéticos, sem vínculo oficial com o Mercado Livre. Baseado em <em>Causal Inference: What If</em> (Hernán &amp; Robins) e <em>Causal Inference for the Brave and True</em> (Matheus Facure).</div></footer>
+
+<script>
+(() => {
+"use strict";
+const SVGNS = "http://www.w3.org/2000/svg";
+const $ = s => document.querySelector(s);
+
+/* ---------------- estrutura da árvore ---------------- */
+const tree = {
+  id: "alvo", kind: "root", lines: ["Passo 0", "Defina o alvo causal"],
+  children: [
+    {
+      id: "q_rand", kind: "q", lines: ["Você consegue", "randomizar o", "tratamento?"],
+      children: [
+        {
+          id: "rct", kind: "m", edge: "sim", lines: ["RCT /", "Teste A/B"],
+          children: [
+            { id: "switch", kind: "m", edge: "unidades interferem", lines: ["Switchback /", "Geo-experimento"] }
+          ]
+        },
+        {
+          id: "q_nat", kind: "q", edge: "não", lines: ["Há variação", "quase-aleatória", "no mundo?"],
+          children: [
+            { id: "rdd", kind: "m", edge: "corte numa régua", lines: ["Regressão", "Descontínua (RDD)"] },
+            { id: "iv",  kind: "m", edge: "existe instrumento", lines: ["Variáveis", "Instrumentais (IV)"] },
+            { id: "did", kind: "m", edge: "liga em t p/ alguns", lines: ["Diferença em", "Diferenças (DiD)"] },
+            { id: "sc",  kind: "m", edge: "1 unidade tratada", lines: ["Controle", "Sintético"] },
+            {
+              id: "q_conf", kind: "q", edge: "nada disso", lines: ["Você mediu", "TODOS os", "confundidores?"],
+              children: [
+                {
+                  id: "adjust", kind: "m", edge: "sim (plausível)", lines: ["Ajuste por covariáveis:", "regressão · IPW ·", "matching · DR/DML"],
+                  children: [
+                    { id: "cate", kind: "m", edge: "para quem funciona?", lines: ["Efeitos heterogêneos", "CATE / Uplift"] }
+                  ]
+                },
+                { id: "sens", kind: "m", edge: "não / não sei", lines: ["Análise de", "sensibilidade + bounds"] }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      id: "q_time", kind: "q", lines: ["Tratamento e", "confundidores", "mudam no tempo?"],
+      children: [
+        { id: "gmethods", kind: "m", edge: "sim, em sequência", lines: ["Métodos-g", "(g-fórmula, MSM/IPTW)"] }
+      ]
+    }
+  ]
+};
+
+/* ---------------- layout ---------------- */
+const NW = 172, NH = 52, HGAP = 76, VSTEP = 70, PADX = 16, PADY = 24;
+function layout(root) {
+  let leaf = 0, maxDepth = 0;
+  (function place(n, depth) {
+    n.depth = depth; maxDepth = Math.max(maxDepth, depth);
+    n.x = PADX + depth * (NW + HGAP);
+    if (!n.children || !n.children.length) { n.y = PADY + leaf * VSTEP; leaf++; return; }
+    n.children.forEach(c => place(c, depth + 1));
+    n.y = (n.children[0].y + n.children[n.children.length - 1].y) / 2;
+  })(root, 0);
+  return { w: PADX * 2 + (maxDepth + 1) * NW + maxDepth * HGAP, h: PADY * 2 + leaf * VSTEP - (VSTEP - NH) };
+}
+const dim = layout(tree);
+
+function el(parent, tag, attrs = {}) {
+  const n = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === "text") n.textContent = v; else n.setAttribute(k, v); }
+  parent.appendChild(n); return n;
+}
+
+const svg = $("#tree");
+svg.setAttribute("viewBox", `0 0 ${dim.w} ${dim.h}`);
+svg.setAttribute("width", dim.w);
+svg.setAttribute("height", dim.h);
+
+const nodeEls = {};
+(function draw(n) {
+  if (n.children) n.children.forEach(c => {
+    const x1 = n.x + NW, y1 = n.y + NH / 2, x2 = c.x, y2 = c.y + NH / 2, mx = (x1 + x2) / 2;
+    el(svg, "path", { class: "edge", d: `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}` });
+    if (c.edge) el(svg, "text", { class: "edge-label", x: mx, y: (y1 + y2) / 2 - 4, "text-anchor": "middle", text: c.edge });
+    draw(c);
+  });
+})(tree);
+
+(function drawNodes(n) {
+  const g = el(svg, "g", { class: `node kind-${n.kind}`, tabindex: 0, role: "button", "aria-label": n.lines.join(" ") });
+  el(g, "rect", { class: "box", x: n.x, y: n.y, width: NW, height: NH });
+  if (n.kind === "m") el(g, "rect", { class: "bar", x: n.x, y: n.y, width: 5, height: NH, rx: 2 });
+  const total = n.lines.length, startY = n.y + NH / 2 - (total - 1) * 6.5 + 4;
+  n.lines.forEach((ln, i) => el(g, "text", { class: "lbl", x: n.x + NW / 2 + (n.kind === "m" ? 2 : 0), y: startY + i * 13, "text-anchor": "middle", text: ln }));
+  g.addEventListener("click", () => select(n.id));
+  g.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); select(n.id); } });
+  nodeEls[n.id] = g;
+  if (n.children) n.children.forEach(drawNodes);
+})(tree);
+
+/* ---------------- conteúdo dos detalhes ---------------- */
+function pyHi(src, meli) {
+  if (meli) {
+    src = src.split("\n").map(function (l) {
+      const a = l.match(/^(\s*)#\s?(.*?)\s?#\s*$/);
+      if (a) return a[1] + "# " + a[2];
+      const b = l.match(/^(.*\S)\s+#\s?(.*?)\s?#\s*$/);
+      if (b) return b[1] + "  # " + b[2];
+      return l;
+    }).join("\n");
+  }
+  const KW = " False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield ";
+  const BI = " abs bool dict enumerate filter float int isinstance len list map max min print range repr round set sorted str sum tuple type zip np pd plt sm smf rng ";
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const re = /(\s+)|(#[^\n]*)|((?:[rRbBfFuU]{0,3})(?:"""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'))|(\b\d[\d_]*\.?\d*(?:[eE][+-]?\d+)?j?\b)|(@[A-Za-z_]\w*)|([A-Za-z_]\w*)|([^\sA-Za-z0-9_"'#]+)|([\s\S])/g;
+  let out = "", m;
+  while ((m = re.exec(src)) !== null) {
+    if (m[1]) out += esc(m[1]);
+    else if (m[2]) out += '<span class="t-c">' + esc(m[2]) + '</span>';
+    else if (m[3]) out += '<span class="t-s">' + esc(m[3]) + '</span>';
+    else if (m[4]) out += '<span class="t-n">' + esc(m[4]) + '</span>';
+    else if (m[5]) out += '<span class="t-d">' + esc(m[5]) + '</span>';
+    else if (m[6]) {
+      const id = m[6], after = src.slice(re.lastIndex);
+      if (KW.indexOf(" " + id + " ") >= 0) out += '<span class="t-k">' + id + '</span>';
+      else if (BI.indexOf(" " + id + " ") >= 0) out += '<span class="t-b">' + id + '</span>';
+      else if (/^\s*\(/.test(after)) out += '<span class="t-f">' + esc(id) + '</span>';
+      else out += esc(id);
+    }
+    else if (m[7]) out += '<span class="t-o">' + esc(m[7]) + '</span>';
+    else out += esc(m[8]);
+  }
+  return out;
+}
+function code(fname, src) {
+  const n = src.split("\n").length;
+  const gutter = Array.from({ length: n }, (_, i) => i + 1).join("\n");
+  const runBtn = '<button class="run" type="button">▶ Executar</button>';
+  const outPanel = '<div class="code-out" hidden><div class="code-out-h"><span>Saída</span><button class="out-x" type="button">limpar</button></div><pre class="out-body"></pre></div>';
+  return '<div class="code-card"><div class="code-head">'
+    + '<span class="dots"><i></i><i></i><i></i></span>'
+    + '<span class="fname">' + fname + '</span>'
+    + runBtn
+    + '<button class="copy" type="button">⧉ Copiar código</button></div>'
+    + '<div class="code-body"><span class="gutter" aria-hidden="true">' + gutter + '</span>'
+    + '<pre class="code"><code>' + pyHi(src, true) + '</code></pre></div>'
+    + outPanel + '</div>';
+}
+
+/* ---------- executar Python no navegador (Pyodide, carregado sob demanda) ---------- */
+const PyRunner = (() => {
+  let pyPromise = null, queue = Promise.resolve();
+  const PKGS = [[/numpy|(^|[^.\w])np\b/, "numpy"], [/pandas|(^|[^.\w])pd\b/, "pandas"], [/statsmodels/, "statsmodels"], [/sklearn/, "scikit-learn"]];
+  const WRAP =
+    "import sys, io, traceback, warnings\n" +
+    "warnings.filterwarnings('ignore')\n" +
+    "def __run_example(code):\n" +
+    "    b = io.StringIO(); so, se = sys.stdout, sys.stderr\n" +
+    "    sys.stdout = sys.stderr = b\n" +
+    "    try:\n" +
+    "        exec(code, {'__name__': '__main__'})\n" +
+    "    except SystemExit:\n        pass\n" +
+    "    except BaseException:\n        traceback.print_exc(file=b)\n" +
+    "    finally:\n        sys.stdout, sys.stderr = so, se\n" +
+    "    return b.getvalue()\n";
+  function ensure(status) {
+    if (!pyPromise) {
+      pyPromise = (async () => {
+        status("Carregando o Python no navegador… (~12 MB na 1ª vez, depois fica em cache)");
+        await new Promise((res, rej) => {
+          const s = document.createElement("script");
+          s.src = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.js";
+          s.onload = res;
+          s.onerror = () => rej(new Error("não consegui baixar o Pyodide — precisa de internet na primeira execução."));
+          document.head.appendChild(s);
+        });
+        const py = await loadPyodide();
+        await py.runPythonAsync(WRAP);
+        return py;
+      })();
+    }
+    return pyPromise;
+  }
+  async function _run(src, status) {
+    const py = await ensure(status);
+    const need = PKGS.filter(p => p[0].test(src)).map(p => p[1]);
+    if (need.length) { status("Instalando " + need.join(", ") + "…"); await py.loadPackage(need); }
+    status("Executando…");
+    return py.globals.get("__run_example")(src);
+  }
+  function run(src, status) {
+    const job = queue.then(() => _run(src, status));
+    queue = job.catch(() => {});
+    return job;
+  }
+  return { run };
+})();
+
+function wireCodeCard(card) {
+  const codeEl = card.querySelector("code");
+  const copyBtn = card.querySelector(".copy");
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(codeEl.textContent);
+      copyBtn.textContent = "✓ Copiado!"; copyBtn.classList.add("ok");
+    } catch (e) {
+      const r = document.createRange(); r.selectNodeContents(codeEl);
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      copyBtn.textContent = "selecionado — Ctrl+C";
+    }
+    setTimeout(() => { copyBtn.textContent = "⧉ Copiar código"; copyBtn.classList.remove("ok"); }, 2200);
+  });
+
+  const runBtn = card.querySelector(".run");
+  if (!runBtn) return;
+  const outWrap = card.querySelector(".code-out");
+  const outBody = outWrap.querySelector(".out-body");
+  outWrap.querySelector(".out-x").addEventListener("click", () => { outWrap.hidden = true; });
+  runBtn.addEventListener("click", async () => {
+    runBtn.disabled = true;
+    outWrap.hidden = false; outWrap.classList.remove("err");
+    const status = t => { outBody.textContent = t; };
+    status("Preparando…");
+    try {
+      const res = await PyRunner.run(codeEl.textContent, status);
+      const clean = (res || "").replace(/\s+$/, "");
+      outBody.textContent = clean || "(o exemplo rodou sem imprimir nada)";
+      if (/Traceback \(most recent call last\)/.test(clean)) outWrap.classList.add("err");
+    } catch (e) {
+      outWrap.classList.add("err");
+      outBody.textContent = "Erro: " + (e && e.message ? e.message : e);
+    } finally {
+      runBtn.disabled = false;
+    }
+  });
+}
+
+const DET = {
+  alvo: {
+    tag: "root", tagTxt: "Ponto de partida",
+    title: "Defina o alvo antes do método",
+    lede: "Sem tratamento, desfecho, população, tempo zero e estimando escritos, você não tem uma pergunta causal — tem uma vontade. O resto da árvore só faz sentido depois deste passo.",
+    quando: "Sempre. É o passo zero de qualquer análise, experimental ou observacional.",
+    assume: "Nada ainda — mas aqui você já decide se o estimando é <b>ATE</b>, <b>ATT</b>, <b>LATE</b> ou <b>CATE</b>, e isso muda qual método serve.",
+    metodos: [
+      ["Checklist do target trial (Hernán)", "tratamento, desfecho, critérios de elegibilidade, tempo zero, estratégia de atribuição, plano de análise, estimando."],
+      ["Escolha do estimando", "\"efeito em quem?\" — a resposta amarra o método (DiD→ATT, IV→LATE, uplift→CATE)."]
+    ],
+    code: [["alvo_causal.py", `#ATE, ATT, LATE, CATE — a mesma tabela de potential outcomes, perguntas diferentes#
+import numpy as np, pandas as pd
+rng = np.random.default_rng(7)
+n = 20_000
+#tau_i = efeito individual (heterogêneo): cupom converte mais quem tem carrinho parado#
+carrinho_parado = rng.random(n) < 0.4
+tau = 6.0 + 14.0*carrinho_parado + rng.normal(0, 2, n)     #em R$ de GMV#
+y0  = 40 + 20*rng.random(n)
+#tratados de fato se auto-selecionam: quem tem carrinho parado pega mais cupom#
+T = (rng.random(n) < 0.2 + 0.5*carrinho_parado).astype(int)
+y1 = y0 + tau
+df = pd.DataFrame(dict(T=T, y0=y0, y1=y1, tau=tau, carrinho_parado=carrinho_parado))
+
+ate  = df["tau"].mean()                                    #se todos tratados vs ninguém#
+att  = df.loc[df["T"] == 1, "tau"].mean()                  #efeito nos que receberam#
+cate = df.loc[df["carrinho_parado"], "tau"].mean()         #efeito nesse segmento#
+print(f"ATE={ate:.1f}   ATT={att:.1f}   CATE(carrinho parado)={cate:.1f}")
+#repare: ATT > ATE aqui porque quem se trata é justamente quem responde melhor#`]]
+    ,
+    refs: ["📘 <b>Hernán &amp; Robins</b> — Cap. 1–3; e o artigo \"Using Big Data to Emulate a Target Trial\" (2016).",
+           "📗 <b>Facure</b> — \"Introduction to Causal Inference\", \"Potential Outcomes\"."]
+  },
+
+  q_rand: {
+    tag: "q", tagTxt: "Pergunta-guia",
+    title: "Você consegue randomizar o tratamento?",
+    lede: "Randomizar quebra qualquer ligação entre tratamento e confundidores — medidos ou não. É a única técnica que dá identificação \"de graça\". Se dá para sortear, sorteie.",
+    quando: "A primeira pergunta de toda análise. \"Consigo\" inclui: sortear usuários, sessões, lojas, CEPs, ou blocos de tempo.",
+    assume: "Se <b>sim</b>: só que a aleatorização foi respeitada (sem furo de implementação) e a amostra dá poder. Se <b>não</b>: você vai ter que <b>argumentar</b> identificação — os próximos nós são as formas de fazer isso.",
+    metodos: [
+      ["Sim → RCT / Teste A/B", "o padrão-ouro. Vá para o nó RCT."],
+      ["Sim, mas unidades interferem", "delivery, marketplace, efeito de rede → randomize geografia × tempo (nó Switchback)."],
+      ["Não", "procure um \"quase-experimento\" (nó seguinte) ou parta para ajuste por covariáveis."]
+    ],
+    code: [["decisao.py", `#regra prática#
+def escolher_estrategia(pode_randomizar, ha_interferencia,
+                        tem_corte, tem_instrumento, tem_pre_periodo,
+                        uma_unidade_tratada, confundidores_observados):
+    if pode_randomizar:
+        return "switchback/geo" if ha_interferencia else "RCT / A-B"
+    if tem_corte:            return "RDD"
+    if tem_instrumento:      return "IV / 2SLS"
+    if tem_pre_periodo:      return "Controle Sintético" if uma_unidade_tratada else "DiD"
+    if confundidores_observados:
+        return "ajuste: regressao / IPW / matching / DML (+ CATE se quiser heterogeneidade)"
+    return "sensibilidade + bounds — e seja honesto sobre os limites"
+
+#exemplos: frete gratis sorteavel; efeito de aumento de limite no Mercado Pago (corte de score)#
+print("frete gratis (randomizavel):",
+      escolher_estrategia(True, False, False, False, False, False, False))
+print("limite Mercado Pago (score >= 700):",
+      escolher_estrategia(False, False, True, False, False, False, False))
+print("adesao ao Meli+ (elegibilidade sorteada):",
+      escolher_estrategia(False, False, False, True, False, False, False))`]],
+    refs: ["📘 <b>Hernán &amp; Robins</b> — Cap. 2 (Randomized experiments).",
+           "📗 <b>Facure</b> — \"Randomised Experiments\", \"The Unreasonable Effectiveness of Randomisation\"."]
+  },
+
+  rct: {
+    tag: "m", tagTxt: "Método",
+    title: "RCT / Teste A/B",
+    lede: "Sorteie quem recebe o tratamento. Sob aleatorização, a diferença de médias já é uma estimativa não-enviesada do ATE. Covariáveis pré-tratamento entram só para reduzir variância (estilo CUPED), nunca para \"corrigir viés\".",
+    quando: "Você controla a atribuição: novo layout de PDP, badge FULL no anúncio, ordem de resultados de busca, fluxo de checkout, campanha de push.",
+    assume: "Aleatorização de fato aleatória · SUTVA (o tratamento de um usuário não afeta o outro) · sem análise após \"espiar\" o resultado (peeking) · amostra dimensionada antes.",
+    metodos: [
+      ["Diferença de médias", "o estimador básico do ATE."],
+      ["Regressão com covariáveis / CUPED", "mesmo alvo, erro-padrão menor usando dados pré-experimento."],
+      ["Teste de proporção + análise de poder", "planeje n antes; corrija p/ múltiplos testes se roda muitas variantes."],
+      ["Efeitos por segmento (pré-registrados)", "cuidado com subgrupos garimpados a posteriori."]
+    ],
+    code: [["ab_test_pdp.py", `import numpy as np, pandas as pd
+import statsmodels.formula.api as smf
+from statsmodels.stats.proportion import proportions_ztest, proportion_effectsize
+from statsmodels.stats.power import NormalIndPower
+
+rng = np.random.default_rng(42)
+n = 60_000
+#Teste A/B: novo layout da página de produto (PDP) no Mercado Livre#
+grupo         = rng.integers(0, 2, n)                 #0 = atual, 1 = novo (sorteado)#
+visitou_antes = (rng.random(n) < 0.30).astype(int)    #covariável PRÉ-tratamento#
+p_base        = 0.052 + 0.030*visitou_antes
+efeito_real   = 0.004                                 #+0,4 p.p. de conversão#
+comprou       = (rng.random(n) < p_base + efeito_real*grupo).astype(int)
+df = pd.DataFrame(dict(grupo=grupo, comprou=comprou, visitou_antes=visitou_antes))
+
+#1) diferença de médias — estimativa direta do ATE#
+ate = df.loc[df.grupo==1,"comprou"].mean() - df.loc[df.grupo==0,"comprou"].mean()
+
+#2) regressão ajustando covariável pré-tratamento => menos variância, mesmo alvo#
+m = smf.ols("comprou ~ grupo + visitou_antes", data=df).fit(cov_type="HC1")
+print(m.summary().tables[1])
+
+#3) teste de proporção + poder (faça o item 3 ANTES de rodar o teste)#
+suc  = df.groupby("grupo").comprou.sum().values
+nobs = df.groupby("grupo").comprou.count().values
+z, p = proportions_ztest([suc[1], suc[0]], [nobs[1], nobs[0]], alternative="larger")
+h = proportion_effectsize(0.056, 0.052)
+n_grupo = NormalIndPower().solve_power(effect_size=h, alpha=0.05, power=0.8, alternative="larger")
+print(f"ATE={ate:.4f}  p={p:.4g}  n/grupo p/ +0,4 p.p. = {n_grupo:,.0f}")`]],
+    refs: ["📘 <b>Hernán &amp; Robins</b> — Cap. 2; efeito-modificação Cap. 4.",
+           "📗 <b>Facure</b> — \"Randomised Experiments\", \"Stats Review: The Most Dangerous Equation\"."]
+  },
+
+  switch: {
+    tag: "m", tagTxt: "Método",
+    title: "Switchback / Geo-experimento",
+    lede: "Quando o tratamento de um usuário respinga nos outros (SUTVA quebra), randomizar por usuário mede errado. A saída é randomizar unidades maiores — cidades, regiões — ou blocos de tempo alternados dentro da mesma região.",
+    quando: "Logística (mudança no roteador de entregas muda o prazo da praça toda), marketplace (mudança de ranking muda a concorrência entre vendedores), incrementalidade de mídia (geo holdout).",
+    assume: "Efeito não vaza <em>entre</em> as unidades de randomização (entre cidades) · sem efeito de carry-over entre blocos de tempo, ou você modela o carry-over · nº de unidades grande o bastante para inferência.",
+    metodos: [
+      ["Cluster-randomized trial", "sorteia a região inteira; erro-padrão agrupado por região."],
+      ["Switchback", "liga/desliga o tratamento em janelas de tempo por região; efeito = média das diferenças intra-região."],
+      ["Geo holdout / matched markets", "praças tratadas vs. praças-controle pareadas; combina bem com DiD e controle sintético."]
+    ],
+    code: [["switchback_roteador.py", `import numpy as np, pandas as pd
+import statsmodels.formula.api as smf
+rng = np.random.default_rng(11)
+
+# switchback: 8 regioes x 60 janelas de 6h; o bloco (ligado/desligado) e sorteado
+efeito_real = -0.8            # o novo roteador tira 0,8 h do prazo medio de entrega
+linhas = []
+for i in range(8):
+    base_regiao = rng.normal(0, 1.5)
+    for j in range(60):
+        tratado = rng.integers(0, 2)
+        prazo = 30 + base_regiao + 0.02 * j + rng.normal(0, 1.2) + efeito_real * tratado
+        linhas.append((f"R{i}", j, tratado, prazo))
+painel = pd.DataFrame(linhas, columns=["regiao", "janela", "tratado", "prazo_h"])
+
+# efeito = media das diferencas intra-regiao; erro-padrao AGRUPADO por regiao
+m = smf.ols("prazo_h ~ tratado + C(regiao) + C(janela)", data=painel).fit(
+        cov_type="cluster", cov_kwds={"groups": painel["regiao"]})
+ic = m.conf_int().loc["tratado"]
+print(f"efeito estimado: {m.params['tratado']:.2f} h   (real = {efeito_real})")
+print(f"IC95: [{ic.iloc[0]:.2f}, {ic.iloc[1]:.2f}]")`]],
+    refs: ["📘 <b>Hernán &amp; Robins</b> — Cap. 2, fine point sobre interferência / SUTVA.",
+           "📗 <b>Facure</b> — apêndice de painel; literatura de <em>switchback</em> (Bojinov et al.)."]
+  },
+
+  q_nat: {
+    tag: "q", tagTxt: "Pergunta-guia",
+    title: "Existe uma variação quase-aleatória no mundo?",
+    lede: "Não deu para você sortear — mas talvez o mundo tenha \"sorteado\" por você: uma regra com corte, um instrumento, uma política que entrou em datas diferentes, um lançamento numa única praça. Cada um vira um método.",
+    quando: "Depois de descartar o RCT. Percorra as quatro possibilidades; se nenhuma colar, vá para \"mediu todos os confundidores?\".",
+    assume: "Cada método abaixo compra identificação com uma hipótese <b>não testável</b> diferente. Conhecer a hipótese é conhecer o ponto fraco do método.",
+    metodos: [
+      ["Corte numa régua contínua", "score ≥ X libera benefício → RDD."],
+      ["Instrumento", "algo empurra o tratamento sem afetar o desfecho por outro caminho → IV."],
+      ["Política liga em t para alguns grupos", "com período pré observável → DiD."],
+      ["Uma única unidade tratada", "uma praça, um país, muito controle e longo pré-período → Controle Sintético."]
+    ],
+    code: [["triagem_quase_exp.py", `#perguntas de triagem — responda com o time de negócio, não sozinho#
+checagens = {
+ "Existe uma nota/score/limite com corte NÍTIDO que decide o tratamento?": "RDD",
+ "Existe um empurrão exógeno (sorteio de elegibilidade, distância, mudança de regra)": "IV",
+ "A intervenção entrou em datas/regiões diferentes e tenho dados ANTES?": "DiD",
+ "Só UMA unidade grande foi tratada e tenho muitas unidades de controle?": "Controle Sintético",
+}
+for pergunta, metodo in checagens.items():
+    print(f"[ ] {pergunta}  ->  {metodo}")`]],
+    refs: ["📘 <b>Hernán &amp; Robins</b> — Cap. 16 (IV); demais como emulação de target trial.",
+           "📗 <b>Facure</b> — Parte II inteira: DiD, Synthetic Control, RDD, IV."]
+  },
+
+  rdd: {
+    tag: "m", tagTxt: "Método",
+    title: "Regressão Descontínua (RDD)",
+    lede: "Uma regra determinística com corte cria um experimento local: quem está logo acima e logo abaixo do limiar é praticamente idêntico, exceto pelo tratamento. O salto na curva do desfecho <em>exatamente no corte</em> é o efeito.",
+    quando: "Mercado Pago concede aumento de limite se score interno ≥ 700; frete grátis para itens ≥ R$79; selo de reputação ao cruzar um nº de vendas; elegibilidade a benefício por faixa de GMV.",
+    assume: "A régua (running variable) não pode ser \"burlada\" com precisão em volta do corte (sem <em>bunching</em>) · nada mais muda descontinuamente no mesmo ponto · forma funcional local flexível (linear/quadrática) e banda bem escolhida. Entrega um efeito <b>local ao corte</b>.",
+    metodos: [
+      ["RDD nítida (sharp)", "o corte determina o tratamento 100%."],
+      ["RDD difusa (fuzzy)", "o corte só muda a probabilidade → combine com IV (2SLS usando \"acima do corte\" como instrumento)."],
+      ["Local linear + kernel triangular", "regressão só na janela, peso caindo com a distância ao corte."],
+      ["rdrobust", "banda ótima e IC com correção de viés — o padrão em produção."]
+    ],
+    code: [["rdd_limite_credito.py", `import numpy as np, pandas as pd
+import statsmodels.formula.api as smf
+rng = np.random.default_rng(3)
+
+# Mercado Pago: aumento de limite concedido se score interno >= 700 (corte nitido)
+n = 8000
+score = rng.uniform(600, 800, n)
+c = 700
+acima = (score >= c).astype(int)
+efeito_real = 180.0                                 # + R$ no TPV de 90 dias
+# TPV varia suavemente com o score + salto causal exatamente no corte
+tpv_90d = 400 + 3.0 * (score - c) + efeito_real * acima + rng.normal(0, 250, n)
+df = pd.DataFrame(dict(score=score, tpv_90d=tpv_90d))
+
+df["r"] = df["score"] - c                           # regua centrada no corte
+df["acima"] = (df["r"] >= 0).astype(int)
+h = 40                                              # meia-janela (bandwidth)
+jan = df[df["r"].abs() <= h].copy()
+jan["w"] = 1 - jan["r"].abs() / h                   # kernel triangular
+
+# local linear com inclinacoes diferentes dos dois lados do corte
+m = smf.wls("tpv_90d ~ acima + r + acima:r", data=jan, weights=jan["w"]).fit(cov_type="HC1")
+print(f"efeito no corte: {m.params['acima']:.0f}   (real = {efeito_real:.0f})")
+# em producao: from rdrobust import rdrobust; rdrobust(df.tpv_90d, df.score, c=700)`]],
+    refs: ["📗 <b>Facure</b> — \"Regression Discontinuity Design\".",
+           "📘 <b>Hernán &amp; Robins</b> — não tem capítulo dedicado; leia como target trial com atribuição por regra."]
+  },
+
+  iv: {
+    tag: "m", tagTxt: "Método",
+    title: "Variáveis Instrumentais (IV / 2SLS)",
+    lede: "Um instrumento Z é algo que empurra o tratamento D mas não tem caminho próprio até o desfecho Y. Usar só a parte de D \"explicada por Z\" limpa o confundimento. O preço: você estima o efeito apenas nos <b>compliers</b> (LATE).",
+    quando: "Elegibilidade a um teste do Meli+ foi sorteada mas a adesão é voluntária; distância ao centro de distribuição como empurrão para receber FULL; mudança exógena de regra tributária afetando preço.",
+    assume: "<b>Relevância</b>: Z realmente move D (1º estágio forte, F ≳ 10). <b>Exclusão</b>: Z só afeta Y através de D — <em>não testável</em>. <b>Independência</b>: Z é as-good-as-random. <b>Monotonicidade</b>: ninguém é \"desafiador\" (defier).",
+    metodos: [
+      ["2SLS (mínimos quadrados em 2 estágios)", "o estimador padrão; use erros robustos."],
+      ["Checagem do 1º estágio", "F do instrumento; instrumento fraco enviesa feio."],
+      ["LIML / Anderson-Rubin", "mais robustos a instrumento fraco."],
+      ["Fuzzy RDD como IV", "\"acima do corte\" instrumenta o tratamento."]
+    ],
+    code: [["iv_meliplus.py", `import numpy as np, pandas as pd
+import statsmodels.formula.api as smf
+rng = np.random.default_rng(16)
+
+n = 12000
+idade_conta = rng.exponential(2, n)
+u = rng.normal(0, 1, n)                        # confundidor NAO observado (engajamento)
+Z = rng.integers(0, 2, n)                      # elegibilidade SORTEADA p/ o teste Meli+
+# adesao: puxada pelo instrumento Z (relevancia) e tambem pelo confundidor u
+p = 1 / (1 + np.exp(-(-0.5 + 1.6 * Z + 0.8 * u + 0.1 * idade_conta)))
+D = (rng.random(n) < p).astype(int)            # assinou de fato
+efeito_real = 900.0                            # + R$ de GMV/ano nos que assinam
+gmv = 3000 + efeito_real * D + 600 * u + 120 * idade_conta + rng.normal(0, 500, n)
+df = pd.DataFrame(dict(gmv=gmv, D=D, Z=Z, idade_conta=idade_conta))
+
+# 2SLS na mao: (1) preve D a partir de Z; (2) usa D previsto no lugar de D
+e1 = smf.ols("D ~ Z + idade_conta", df).fit()
+df["D_hat"] = e1.fittedvalues
+e2 = smf.ols("gmv ~ D_hat + idade_conta", df).fit()
+print(f"LATE (2SLS):            {e2.params['D_hat']:.0f}   (real = {efeito_real:.0f})")
+print(f"F do 1o estagio:        {e1.tvalues['Z'] ** 2:.0f}   (instrumento fraco se < ~10)")
+print(f"OLS ingenuo (enviesado): {smf.ols('gmv ~ D + idade_conta', df).fit().params['D']:.0f}")
+# com lib (erro-padrao correto): from linearmodels.iv import IV2SLS
+#   IV2SLS.from_formula('gmv ~ 1 + idade_conta + [D ~ Z]', df).fit()`]],
+    refs: ["📘 <b>Hernán &amp; Robins</b> — Cap. 16 (Instrumental variable estimation).",
+           "📗 <b>Facure</b> — \"Instrumental Variables\"."]
+  },
+
+  did: {
+    tag: "m", tagTxt: "Método",
+    title: "Diferença em Diferenças (DiD)",
+    lede: "Compare a <em>variação</em> do grupo tratado com a <em>variação</em> de um grupo controle no mesmo período. O que o controle mudou é o contrafactual do que o tratado teria mudado sem a intervenção.",
+    quando: "Frete grátis lançado por região em datas diferentes; nova taxa de vendedor em algumas categorias; mudança de política de parcelamento por praça.",
+    assume: "<b>Tendências paralelas</b>: sem a intervenção, tratado e controle teriam evoluído em paralelo (inspecione o pré-período!) · sem choque simultâneo só num dos grupos · composição estável · para adoção escalonada, o TWFE simples é enviesado — use estimadores modernos.",
+    metodos: [
+      ["2×2 clássico", "(tratado depois − antes) − (controle depois − antes)."],
+      ["TWFE — efeitos fixos de unidade e tempo", "regressão com dummies; erro agrupado por unidade."],
+      ["Event study", "coeficientes por período relativo ao evento — os pré devem ser ~0."],
+      ["Callaway &amp; Sant'Anna / Sun &amp; Abraham / did", "corretos sob adoção escalonada e efeitos heterogêneos no tempo."]
+    ],
+    code: [["did_frete_gratis.py", `import numpy as np, pandas as pd
+import statsmodels.formula.api as smf
+rng = np.random.default_rng(6)
+
+# 12 regioes x 24 meses. 6 recebem frete gratis, em datas ESCALONADAS.
+efeito_real = 15.0
+datas = [8, 10, 12, 14, 16, 18]
+linhas = []
+for i in range(12):
+    tratada = i < 6
+    mes_adocao = datas[i] if tratada else 999
+    nivel = rng.normal(120, 20)
+    for mes in range(1, 25):
+        pos = int(mes >= mes_adocao)
+        gmv = nivel + 2.5 * mes + rng.normal(0, 6) + efeito_real * pos   # tendencia comum + salto
+        linhas.append((f"R{i}", mes, pos, gmv))
+painel = pd.DataFrame(linhas, columns=["regiao", "mes", "tratado_pos", "gmv"])
+
+# TWFE: efeitos fixos de regiao e de mes; erro agrupado por regiao
+m = smf.ols("gmv ~ tratado_pos + C(regiao) + C(mes)", data=painel).fit(
+        cov_type="cluster", cov_kwds={"groups": painel["regiao"]})
+print(f"DiD (TWFE): {m.params['tratado_pos']:.1f}   (real = {efeito_real:.0f})")
+# adocao escalonada + efeito que cresce no tempo => TWFE pode enviesar.
+# com lib: from differences import ATTgt   (Callaway & Sant'Anna)`]],
+    refs: ["📗 <b>Facure</b> — \"Difference-in-Differences\", \"Panel Data and Fixed Effects\".",
+           "📘 <b>Hernán &amp; Robins</b> — trate como emulação de target trial; ver também Cap. 7 (confounding)."]
+  },
+
+  sc: {
+    tag: "m", tagTxt: "Método",
+    title: "Controle Sintético",
+    lede: "Uma única unidade foi tratada (uma praça, um país). Construa um \"clone\" dela como média ponderada das unidades de controle, escolhendo os pesos para reproduzir o <em>pré-período</em>. Depois do tratamento, real menos clone é o efeito.",
+    quando: "Abertura de um centro de distribuição em Recife → prazo de entrega no Nordeste; entrada do Mercado Pago numa vertical; mudança regulatória num único país da operação.",
+    assume: "O clone reproduz bem o pré-período (bom ajuste) · a unidade tratada está dentro do \"envelope\" das controles (sem extrapolar) · nenhuma controle sofreu choque próprio no período · pré-período longo. Inferência via <em>placebo</em> nas unidades de controle.",
+    metodos: [
+      ["Controle sintético clássico (Abadie)", "pesos ≥ 0 somando 1, ajustados por preditores + trajetória pré."],
+      ["Placebo / permutação", "aplique o método a cada controle; o efeito real deve ser um outlier."],
+      ["Synthetic DiD", "combina pesos de unidade e de tempo — menos sensível ao ajuste pré."],
+      ["pysyncon / SparseSC", "implementações prontas em Python."]
+    ],
+    code: [["controle_sintetico_cd.py", `import numpy as np
+from scipy.optimize import minimize
+rng = np.random.default_rng(21)
+
+# Abertura do CD de Recife: 1 praca tratada + 9 doadoras, 24 meses, CD no mes 13.
+T_pre, n_doad, T = 12, 9, 24
+fatores = rng.normal(0, 1, (T, 2))                       # tendencias latentes comuns
+carga = rng.normal(0, 1, (n_doad, 2))
+Y_doad = 48 + carga @ fatores.T + rng.normal(0, 0.8, (n_doad, T))
+w_true = np.zeros(n_doad); w_true[:3] = [0.5, 0.3, 0.2]  # Recife ~ mistura de 3 doadoras
+efeito_real = -4.0                                       # CD tira 4 h do prazo, a partir do mes 13
+Y_recife = w_true @ Y_doad + rng.normal(0, 0.8, T)
+Y_recife[T_pre:] += efeito_real
+
+# acha pesos >= 0 que somam 1 e reproduzem o PRE-periodo de Recife
+perda = lambda w: np.sum((Y_recife[:T_pre] - w @ Y_doad[:, :T_pre]) ** 2)
+res = minimize(perda, np.full(n_doad, 1 / n_doad), method="SLSQP",
+               bounds=[(0, 1)] * n_doad,
+               constraints={"type": "eq", "fun": lambda w: w.sum() - 1})
+w = res.x
+sintetico = w @ Y_doad
+efeito = (Y_recife[T_pre:] - sintetico[T_pre:]).mean()
+print(f"efeito medio pos-abertura: {efeito:.2f} h   (real = {efeito_real})")
+print("pesos > 0.05:", {i: round(float(v), 2) for i, v in enumerate(w) if v > 0.05})
+# com lib: from pysyncon import Dataprep, Synth   (+ ajuste por preditores e inferencia placebo)`]],
+    refs: ["📗 <b>Facure</b> — \"Synthetic Control\".",
+           "📘 <b>Hernán &amp; Robins</b> — não coberto; leitura complementar: Abadie (2021, JEL)."]
+  },
+
+  q_conf: {
+    tag: "q", tagTxt: "Pergunta-guia",
+    title: "Você mediu todos os confundidores?",
+    lede: "Sem experimento e sem quase-experimento, resta assumir <em>ignorabilidade condicional</em>: dado o conjunto de covariáveis que você observou, tratamento é as-good-as-random. É a hipótese mais frágil da árvore — e a mais comum na prática.",
+    quando: "Toda análise puramente observacional de dados de log: efeito de o vendedor adotar uma ferramenta, de o cliente usar um recurso, de participar de um programa.",
+    assume: "<b>Exchangeability condicional</b> (nenhum confundidor não medido) · <b>Positividade</b> (todo perfil tem chance &gt; 0 de estar em cada braço — cheque o overlap) · <b>Consistência</b> (o \"tratamento\" é bem definido). O DAG é quem diz qual é o conjunto de ajuste.",
+    metodos: [
+      ["Sim, é plausível → ajuste", "regressão / padronização, IPW, matching, ou duplamente robusto (nó Ajuste)."],
+      ["Quero saber para quem funciona", "estimação de CATE / uplift (nó seguinte)."],
+      ["Não, ou não tenho como saber", "análise de sensibilidade e bounds (nó Sensibilidade) — não finja que resolveu."]
+    ],
+    code: [["overlap_check.py", `import numpy as np, pandas as pd
+from sklearn.linear_model import LogisticRegression
+rng = np.random.default_rng(31)
+
+n = 6000
+reputacao = rng.normal(0, 1, n)
+meses_ativo = rng.integers(1, 48, n)
+# adotar a ferramenta esta MUITO ligado ao perfil -> risco de faltar suporte comum
+lin = -0.3 + 1.6 * reputacao + 0.04 * meses_ativo
+tratado = (rng.random(n) < 1 / (1 + np.exp(-lin))).astype(int)
+df = pd.DataFrame(dict(reputacao=reputacao, meses_ativo=meses_ativo, tratado=tratado))
+
+X = df[["reputacao", "meses_ativo"]]
+df["ps"] = LogisticRegression(max_iter=1000).fit(X, df["tratado"]).predict_proba(X)[:, 1]
+print(df.groupby("tratado")["ps"].describe(percentiles=[.01, .05, .95, .99]).round(3))
+# se o ps dos tratados quase nao se sobrepoe ao dos controles, NAO ha suporte comum:
+# nenhum ajuste conserta. Apare (trim) a regiao sem overlap ou mude o estimando.`]],
+    refs: ["📘 <b>Hernán &amp; Robins</b> — Cap. 3 (exchangeability, positivity, consistency); Cap. 7–8.",
+           "📗 <b>Facure</b> — \"Confounding\", \"The Propensity Score\"."]
+  },
+
+  adjust: {
+    tag: "m", tagTxt: "Método",
+    title: "Ajuste por covariáveis observadas",
+    lede: "Sob ignorabilidade condicional, quatro famílias estimam o mesmo ATE: modelar o desfecho, modelar o tratamento (pesos), parear, ou combinar as duas (duplamente robusto). Prefira sempre a versão que erra pouco se <em>um</em> dos modelos estiver errado.",
+    quando: "Efeito de virar MercadoLíder sobre GMV; de o comprador ativar notificações sobre recompra; de usar Mercado Ads sobre visitas — sempre que você acredita ter os confundidores no banco.",
+    assume: "Tudo do nó anterior (sem confundidor oculto, positividade, consistência) · além disso, cada método adiciona uma hipótese de <em>forma funcional</em> (do modelo de desfecho e/ou do de propensão).",
+    metodos: [
+      ["Regressão / padronização (g-fórmula)", "ajusta modelo de Y, prevê o mundo T=1 e T=0 para todos, tira a média."],
+      ["IPW — propensity score", "pondera cada unidade pelo inverso da probabilidade do tratamento recebido."],
+      ["Matching / pareamento", "casa cada tratado com controles \"gêmeos\"; entrega o ATT."],
+      ["Duplamente robusto — AIPW, TMLE, Double/Debiased ML", "consistente se o modelo de Y <em>ou</em> o de T estiver certo; usa ML nos incômodos sem enviesar o efeito."]
+    ],
+    code: [
+      ["padronizacao_e_ipw.py", `import numpy as np, pandas as pd
+import statsmodels.formula.api as smf
+from sklearn.linear_model import LogisticRegression
+rng = np.random.default_rng(41)
+
+# Efeito de virar "MercadoLider" (T) sobre o GMV, ajustando confundidores medidos.
+n = 8000
+meses_ativo = rng.integers(1, 60, n)
+reputacao = rng.normal(0, 1, n)
+p = 1 / (1 + np.exp(-(-1.0 + 1.2 * reputacao + 0.04 * meses_ativo)))
+virou_lider = (rng.random(n) < p).astype(int)
+efeito_real = 800.0
+gmv = 1500 + efeito_real * virou_lider + 500 * reputacao + 20 * meses_ativo + rng.normal(0, 400, n)
+df = pd.DataFrame(dict(gmv=gmv, virou_lider=virou_lider, reputacao=reputacao, meses_ativo=meses_ativo))
+
+# (1) padronizacao / g-formula: modela Y, preve os dois mundos para TODOS
+mod = smf.ols("gmv ~ virou_lider + reputacao + meses_ativo", data=df).fit()
+ate_g = (mod.predict(df.assign(virou_lider=1)) - mod.predict(df.assign(virou_lider=0))).mean()
+
+# (2) IPW: modela T, pondera pelo inverso da propensao
+X = df[["reputacao", "meses_ativo"]]
+ps = np.clip(LogisticRegression(max_iter=1000).fit(X, df["virou_lider"]).predict_proba(X)[:, 1], .02, .98)
+w = np.where(df["virou_lider"] == 1, 1 / ps, 1 / (1 - ps))
+m1 = np.average(df.loc[df.virou_lider == 1, "gmv"], weights=w[df.virou_lider == 1])
+m0 = np.average(df.loc[df.virou_lider == 0, "gmv"], weights=w[df.virou_lider == 0])
+print(f"ingenua (enviesada) = {df.loc[df.virou_lider==1,'gmv'].mean() - df.loc[df.virou_lider==0,'gmv'].mean():.0f}")
+print(f"ATE padronizacao    = {ate_g:.0f}")
+print(f"ATE IPW             = {m1 - m0:.0f}   (real = {efeito_real:.0f})")`],
+      ["doubly_robust_dml.py", `import numpy as np
+from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.model_selection import KFold
+rng = np.random.default_rng(51)
+
+# Duplamente robusto (AIPW) com cross-fitting: efeito de cupom de 1a compra (T) sobre LTV (Y).
+n = 8000
+X = rng.normal(0, 1, (n, 4))                                  # covariaveis
+T = (rng.random(n) < 1 / (1 + np.exp(-(X @ [0.8, -0.5, 0.3, 0.0])))).astype(int)
+efeito_real = 40.0
+Y = 100 + efeito_real * T + 30 * X[:, 0] - 20 * X[:, 1] + rng.normal(0, 25, n)
+
+mu1 = np.zeros(n); mu0 = np.zeros(n); ps = np.zeros(n)
+for tr, te in KFold(5, shuffle=True, random_state=0).split(X):
+    ps[te] = LogisticRegression(max_iter=500).fit(X[tr], T[tr]).predict_proba(X[te])[:, 1]
+    mu1[te] = LinearRegression().fit(X[tr][T[tr] == 1], Y[tr][T[tr] == 1]).predict(X[te])
+    mu0[te] = LinearRegression().fit(X[tr][T[tr] == 0], Y[tr][T[tr] == 0]).predict(X[te])
+ps = np.clip(ps, .02, .98)
+# escore AIPW: acerta se o modelo de Y OU o de T estiver certo
+psi = (mu1 - mu0) + T * (Y - mu1) / ps - (1 - T) * (Y - mu0) / (1 - ps)
+print(f"ATE (AIPW / DR): {psi.mean():.1f}  +- {1.96 * psi.std() / np.sqrt(n):.1f}   (real = {efeito_real:.0f})")
+# com lib: from econml.dml import LinearDML  (ML nos incomodos + Neyman-ortogonalidade)`]
+    ],
+    refs: ["📘 <b>Hernán &amp; Robins</b> — Cap. 12 (IPW), 13 (standardization), 14–15 (g-estimation, outcome regression &amp; propensity), 17 (censoring).",
+           "📗 <b>Facure</b> — \"Regression\", \"Propensity Score\", \"Matching\", \"Doubly Robust Estimation\"."]
+  },
+
+  cate: {
+    tag: "m", tagTxt: "Método",
+    title: "Efeitos heterogêneos — CATE / Uplift",
+    lede: "Nem todo mundo responde igual. O CATE τ(x) = E[Y¹ − Y⁰ | X = x] responde \"para quem funciona?\". Em CRM isso é <em>uplift modeling</em>: mande cupom só para quem muda de comportamento por causa dele — os persuadíveis.",
+    quando: "Escolher alvos de cupom de reativação, de campanhas de push, de descontos de retenção; personalizar limite no Mercado Pago; priorizar quais vendedores recebem consultoria.",
+    assume: "As mesmas hipóteses do desenho que gerou os dados — ML <b>não cria</b> identificação. O ideal é rodar sobre dados de um teste A/B; sobre observacional, herda todo o risco de confundimento do nó anterior.",
+    metodos: [
+      ["Meta-learners — S / T / X-learner", "reaproveitam qualquer regressor de ML para estimar τ(x)."],
+      ["Double ML / Causal Forest (econml, causalml)", "estimam τ(x) com garantias e IC; forest dá importância de variáveis."],
+      ["Curva Qini / uplift por decil", "métrica de avaliação: quanto ganho você captura mirando os top-k%."],
+      ["Policy learning", "transforma τ(x) em regra de decisão ótima sob restrição de orçamento."]
+    ],
+    code: [["uplift_cupom_reativacao.py", `import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+rng = np.random.default_rng(61)
+
+# dados de um TESTE A/B de cupom de reativacao (T sorteado). Y = comprou em 30 dias.
+n = 8000
+recencia = rng.exponential(30, n)
+freq = rng.poisson(3, n)
+X = np.c_[recencia, freq, rng.normal(0, 1, (n, 2))]
+T = rng.integers(0, 2, n)
+uplift_real = 0.20 * (recencia > 40)                     # so o cliente "sumido" reage
+Y = (rng.random(n) < 0.15 + uplift_real * T).astype(int)
+
+# T-learner: um modelo para tratados, outro para controles
+kw = dict(n_estimators=40, max_depth=5, min_samples_leaf=50, random_state=0)
+m1 = RandomForestClassifier(**kw).fit(X[T == 1], Y[T == 1])
+m0 = RandomForestClassifier(**kw).fit(X[T == 0], Y[T == 0])
+tau = m1.predict_proba(X)[:, 1] - m0.predict_proba(X)[:, 1]
+
+margem, custo = 30.0, 3.0                                 # manda cupom se uplift > 0,10
+alvo = tau * margem > custo
+print(f"mandar cupom p/ {alvo.mean():.0%} da base")
+print(f"uplift medio  no alvo = {tau[alvo].mean():.3f}   fora = {tau[~alvo].mean():.3f}")
+print(f"recencia media no alvo = {recencia[alvo].mean():.0f} d   fora = {recencia[~alvo].mean():.0f} d")
+# com lib: from econml.dml import CausalForestDML  /  causalml.inference.meta`]],
+    refs: ["📗 <b>Facure</b> — Parte III: \"Meta Learners\", \"Debiased/Orthogonal ML\", \"When Prediction Fails\", policy learning.",
+           "📘 <b>Hernán &amp; Robins</b> — Cap. 4 (effect modification) para a base conceitual."]
+  },
+
+  sens: {
+    tag: "m", tagTxt: "Método",
+    title: "Análise de sensibilidade + bounds",
+    lede: "Você não consegue descartar confundidor oculto. Em vez de fingir que o efeito é causal, quantifique <em>quão forte</em> um confundidor não medido teria que ser para derrubar a conclusão — e reporte isso junto do número.",
+    quando: "Toda estimativa observacional que vai embasar decisão. É o mínimo ético quando não há RCT nem quase-experimento crível.",
+    assume: "Nada além do que você já assumiu — a ideia é justamente estressar essas hipóteses, não adicionar novas.",
+    metodos: [
+      ["E-value (VanderWeele)", "força mínima, em risco relativo, que o confundidor precisaria ter com T e com Y."],
+      ["Limites de Rosenbaum", "quanto de desbalanceamento oculto nas odds de tratamento inverteria o teste."],
+      ["Refutadores automáticos (DoWhy)", "confundidor comum não observado, tratamento placebo, subconjunto aleatório, réplica com dado falso."],
+      ["Identificação parcial / bounds", "quando não dá para ter ponto, entregue o intervalo que os dados sustentam (Manski)."]
+    ],
+    code: [["sensibilidade.py", `import numpy as np
+#Efeito OBSERVACIONAL de ativar "Compra Garantida" sobre a taxa de recompra.#
+#Risco relativo ajustado observado:#
+RR = 1.35
+#E-value: um confundidor não medido teria de ter RR >= E-value TANTO com o tratamento#
+#QUANTO com o desfecho para explicar todo o efeito (acima e além dos ajustes feitos).#
+evalue = RR + np.sqrt(RR * (RR - 1))
+print(f"E-value do ponto = {evalue:.2f}")           #~1,93: confundidor forte, mas não absurdo#
+
+#limite inferior do IC (ex.: 1,12) tem seu próprio E-value#
+LI = 1.12
+print(f"E-value do limite = {LI + np.sqrt(LI*(LI-1)):.2f}")
+
+#DoWhy: refutadores automáticos#
+#from dowhy import CausalModel#
+#m = CausalModel(data=df, treatment="compra_garantida", outcome="recompra", graph=grafo)#
+#est = m.estimate_effect(m.identify_effect(), method_name="backdoor.propensity_score_weighting")#
+#m.refute_estimate(est_id, est, method_name="add_unobserved_common_cause",#
+#                  confounders_effect_on_treatment="binary_flip",#
+#                  confounders_effect_on_outcome="linear")#
+#m.refute_estimate(est_id, est, method_name="placebo_treatment_refuter")#`]],
+    refs: ["📘 <b>Hernán &amp; Robins</b> — Cap. 3 (fine points) e capítulo de <em>bias analysis</em>.",
+           "📗 <b>Facure</b> — \"Sensitivity Analysis\"; VanderWeele &amp; Ding (2017) para o E-value."]
+  },
+
+  q_time: {
+    tag: "q", tagTxt: "Pergunta-guia",
+    title: "O tratamento e os confundidores mudam ao longo do tempo?",
+    lede: "Caso especial e traiçoeiro: o tratamento é aplicado repetidamente (push toda semana), e um confundidor variável no tempo (engajamento recente) é <em>afetado pelo tratamento anterior</em> e <em>afeta o próximo</em>. Ajustar por ele do jeito comum enviesa; não ajustar também.",
+    quando: "Sequências de campanhas, mudanças de limite mês a mês, planos de assinatura com upgrades/downgrades, qualquer 'tratamento' que se repete e reage ao próprio histórico.",
+    assume: "<b>Ignorabilidade sequencial</b>: a cada instante, dado todo o histórico observado, o tratamento daquele instante é as-good-as-random · positividade em cada passo.",
+    metodos: [
+      ["g-fórmula (computação-g)", "simula trajetórias sob cada estratégia de tratamento ao longo do tempo."],
+      ["IPTW de Marginal Structural Models", "pondera pelo inverso da probabilidade de toda a sequência de tratamento."],
+      ["g-estimação de Structural Nested Models", "robusta a alguns tipos de má especificação."]
+    ],
+    code: [["g_methods_push_semanal.py", `import numpy as np, pandas as pd
+import statsmodels.formula.api as smf
+rng = np.random.default_rng(71)
+sig = lambda x: 1 / (1 + np.exp(-x))
+
+# Duas rodadas de push. U = fragilidade NAO observada. L1 (engajamento apos a 1a rodada)
+# e afetado por A0 E por U; L1 decide A1. => L1 e confundidor de A1 E colisor de A0.
+n = 60000
+U  = rng.normal(0, 1, n)
+A0 = rng.integers(0, 2, n)                                  # push rodada 0 (sorteado)
+L1 = (rng.random(n) < sig(-0.4 + 1.0 * A0 + 1.2 * U)).astype(int)   # A0 -> L1 ; U -> L1
+A1 = (rng.random(n) < sig(-0.5 + 1.6 * L1)).astype(int)             # L1 -> A1
+Y  = 10 + 2 * A0 + 2 * A1 + 2 * U + rng.normal(0, 2, n)             # cada push +2 ; U -> Y
+df = pd.DataFrame(dict(A0=A0, L1=L1, A1=A1, Y=Y))
+# efeito real do regime "sempre push" (A0=A1=1) vs "nunca" (0,0) = 4
+
+# (1) regressao ajustando L1: L1 e COLISOR (A0 -> L1 <- U) => abre vies no efeito de A0
+reg = smf.ols("Y ~ A0 + A1 + L1", df).fit()
+print(f"regressao com L1:  A0+A1 = {reg.params['A0'] + reg.params['A1']:.2f}   (deveria dar 4)")
+
+# (2) IPTW de MSM: peso = 1/P(A1 | L1) quebra a seta L1 -> A1; A0 ja e sorteado
+p1 = smf.logit("A1 ~ L1", df).fit(disp=0).predict(df)
+w = np.where(A1 == 1, 1 / p1, 1 / (1 - p1))
+msm = smf.wls("Y ~ A0 + A1", data=df, weights=w).fit()
+print(f"MSM / IPTW:        A0+A1 = {msm.params['A0'] + msm.params['A1']:.2f}   (real = 4)")`]],
+    refs: ["📘 <b>Hernán &amp; Robins</b> — Parte III, Cap. 19–21 (time-varying treatments, g-methods, MSM). É o coração do livro.",
+           "📗 <b>Facure</b> — menção no apêndice de painel; para profundidade, Hernán."]
+  },
+
+  dag: {
+    tag: "x", tagTxt: "Passo transversal",
+    title: "Desenhe o DAG antes de estimar",
+    lede: "O grafo acíclico dirigido é o mapa das suas hipóteses causais. Ele decide, por uma regra mecânica (critério de backdoor), o que entra no modelo e o que fica de fora — e se o efeito é sequer identificável com os dados que você tem.",
+    quando: "Antes de escrever a primeira linha de `smf.ols`. Sempre. Num guardanapo, se preciso.",
+    assume: "As setas são <b>suas hipóteses</b>, não fatos. O valor do DAG é tornar as hipóteses explícitas e criticáveis.",
+    metodos: [
+      ["Confundidor (fork X ← Z → Y)", "controle. É o único que você quer fechar."],
+      ["Mediador (chain X → M → Y)", "NÃO controle se quer o efeito total — condicionar apaga o efeito."],
+      ["Colisor (collider X → C ← Y)", "NUNCA controle, e cuidado com filtros de amostra que condicionam nele (viés de seleção)."],
+      ["Critério de backdoor / do-calculus", "algoritmo que devolve o conjunto de ajuste válido (DoWhy, dagitty)."]
+    ],
+    code: [["dag_identificacao.py", `import numpy as np, pandas as pd
+import statsmodels.formula.api as smf
+rng = np.random.default_rng(81)
+
+# DAG: reputacao, categoria -> confundidores;  visitas -> MEDIADOR (ads -> visitas -> vendas);
+#      vira_premium -> COLISOR (vendas -> vira_premium).
+n = 8000
+reputacao = rng.normal(0, 1, n)
+categoria = rng.integers(0, 3, n)
+usa_ads = (rng.random(n) < 1 / (1 + np.exp(-(0.4 * reputacao + 0.3 * (categoria - 1))))).astype(int)
+visitas = 50 + 40 * usa_ads + 15 * reputacao + rng.normal(0, 10, n)          # mediador
+vendas = 20 + 5 * usa_ads + 0.1 * visitas + 12 * reputacao + 3 * (categoria - 1) + rng.normal(0, 8, n)
+df = pd.DataFrame(dict(vendas=vendas, usa_ads=usa_ads, visitas=visitas,
+                       reputacao=reputacao, categoria=categoria))
+# efeito TOTAL real de usa_ads = 5 (direto) + 0.1 * 40 (via visitas) = 9
+
+b = lambda f: smf.ols(f, df).fit().params["usa_ads"]
+print(f"sem ajuste (confundido):          {b('vendas ~ usa_ads'):.1f}")
+print(f"backdoor {{reputacao, categoria}}:   {b('vendas ~ usa_ads + reputacao + C(categoria)'):.1f}   <- correto (~9)")
+print(f"+ visitas (MEDIADOR -> ERRADO):    {b('vendas ~ usa_ads + reputacao + C(categoria) + visitas'):.1f}   <- some o efeito via visitas")
+# com lib: from dowhy import CausalModel  ->  identify_effect() devolve o conjunto de backdoor`]],
+    refs: ["📘 <b>Hernán &amp; Robins</b> — Cap. 6 (graphical representation), 7 (confounding), 8 (selection bias).",
+           "📗 <b>Facure</b> — \"Graphical Causal Models\"."]
+  },
+
+  robust: {
+    tag: "x", tagTxt: "Passo transversal",
+    title: "Cheques de robustez depois de estimar",
+    lede: "Uma estimativa causal só vale o quanto suas hipóteses aguentam pressão. Antes de levar o número para a reunião, tente derrubá-lo você mesmo.",
+    quando: "Depois de qualquer estimativa observacional ou quase-experimental — e mesmo em RCT, para SRM e validade.",
+    assume: "—",
+    metodos: [
+      ["Placebo / falso desfecho", "aplique a mesma análise a um desfecho que o tratamento não poderia afetar; efeito ≈ 0 esperado."],
+      ["Falso período / falsa data de intervenção", "\"finja\" que a intervenção foi antes; não deve aparecer efeito."],
+      ["Falso grupo tratado", "trate um grupo que não recebeu nada; efeito ≈ 0."],
+      ["Overlap / positividade e SRM", "histograma do propensity por braço; teste de razão de amostra em A/B."],
+      ["Sensibilidade a confundidor oculto", "E-value, bounds de Rosenbaum, refutadores do DoWhy (nó Sensibilidade)."],
+      ["Especificações alternativas", "o efeito sobrevive a mudanças razoáveis de covariáveis, janela e forma funcional?"]
+    ],
+    code: [["robustez.py", `import numpy as np, pandas as pd
+import statsmodels.formula.api as smf
+rng = np.random.default_rng(91)
+
+# painel DiD: 24 regioes x 24 meses; frete gratis no mes 13 em 12 regioes
+efeito_real = 12.0
+linhas = []
+for i in range(24):
+    tratada = int(i < 12)
+    nivel = rng.normal(100, 15)
+    for mes in range(1, 25):
+        pos = int(tratada and mes >= 13)
+        gmv = nivel + 2 * mes + rng.normal(0, 5) + efeito_real * pos
+        logins = 200 + 0.5 * mes + rng.normal(0, 4)            # tendencia comum, NAO reage ao frete
+        linhas.append((f"R{i}", mes, tratada, pos, gmv, logins))
+painel = pd.DataFrame(linhas, columns=["regiao", "mes", "tratada", "tratado_pos", "gmv", "logins"])
+
+did = smf.ols("gmv ~ tratado_pos + C(regiao) + C(mes)", painel).fit()
+print(f"efeito DiD estimado:          {did.params['tratado_pos']:.1f}   (real = {efeito_real:.0f})")
+
+# 1) placebo: desfecho que o frete NAO deveria mover
+plc = smf.ols("logins ~ tratado_pos + C(regiao) + C(mes)", painel).fit()
+print(f"placebo (logins, deveria ~0): {plc.params['tratado_pos']:.2f}")
+
+# 2) data falsa: finge intervencao no mes 7, usando SO o pre-periodo real
+pre = painel[painel.mes < 13].copy()
+pre["fake_pos"] = ((pre.mes >= 7) & (pre.tratada == 1)).astype(int)
+fake = smf.ols("gmv ~ fake_pos + C(regiao) + C(mes)", pre).fit()
+print(f"data falsa (deveria ~0):      {fake.params['fake_pos']:.2f}")`]],
+    refs: ["📗 <b>Facure</b> — checagens de placebo em \"Difference-in-Differences\" e \"Synthetic Control\".",
+           "📘 <b>Hernán &amp; Robins</b> — Cap. 3 e discussões de negative controls."]
+  }
+};
+
+/* ---------------- render do detalhe ---------------- */
+const detail = $("#detail");
+let selected = null;
+function select(id, opts) {
+  const d = DET[id];
+  if (!d) return;
+  selected = id;
+  Object.values(nodeEls).forEach(g => g.classList.remove("sel"));
+  if (nodeEls[id]) nodeEls[id].classList.add("sel");
+
+  const metodos = d.metodos.map(([n, t]) => `<li><b>${n}</b> — ${t}</li>`).join("");
+  const codes = d.code.map(([f, s]) => code(f, s.trim())).join("");
+  const refs = d.refs.map(r => `<div>${r}</div>`).join("");
+  const assume = d.assume && d.assume !== "—"
+    ? `<p class="dsub">O que você está assumindo</p><div class="dbox assume">${d.assume}</div>` : "";
+
+  detail.innerHTML = `
+    <span class="dtag t-${d.tag}">${d.tagTxt}</span>
+    <h3 class="dtitle">${d.title}</h3>
+    <p class="dlede">${d.lede}</p>
+    <p class="dsub">Quando cair aqui</p>
+    <div class="dbox">${d.quando}</div>
+    ${assume}
+    <p class="dsub">Métodos principais</p>
+    <ul class="mlist">${metodos}</ul>
+    <p class="dsub">Exemplo em Python — cenário Mercado Livre</p>
+    ${codes}
+    <div class="refs">${refs}</div>
+  `;
+  detail.querySelectorAll(".code-card").forEach(wireCodeCard);
+  if (!opts || !opts.noScroll)
+    detail.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+}
+
+document.querySelectorAll(".cross-card").forEach(b => b.addEventListener("click", () => select(b.dataset.node)));
+
+/* estado inicial: mostra o Passo 0 sem rolar a tela */
+select("alvo", { noScroll: true });
+})();
+</script>
+</body></html>
