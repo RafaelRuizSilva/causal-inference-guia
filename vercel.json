@@ -1,5 +1,4 @@
 {
-  "cleanUrls": true,
   "rewrites": [
     { "source": "/", "destination": "/Arvore-Decisao-Inferencia-Causal-MELI.html" }
   ]
